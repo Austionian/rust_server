@@ -10,6 +10,7 @@ pub struct ThreadPool {
 
 type Job = Box<dyn FnOnce() + Send + 'static>;
 
+#[derive(Debug)]
 pub enum PoolCreationError {
     TooSmallThreadCount,
 }
@@ -27,8 +28,10 @@ impl ThreadPool {
     /// # Panics
     ///
     /// The `new` function will panic if the size is zero.
-    pub fn new(size: usize) -> ThreadPool {
-        assert!(size > 0);
+    pub fn new(size: usize) -> Result<ThreadPool, PoolCreationError> {
+        if size < 1 {
+            return Err(PoolCreationError::TooSmallThreadCount);
+        }
         let (sender, receiver) = mpsc::channel();
         let receiver = Arc::new(Mutex::new(receiver));
 
@@ -38,9 +41,10 @@ impl ThreadPool {
             workers.push(Worker::new(id, Arc::clone(&receiver)));
         }
 
-        ThreadPool { workers, sender }
+        Ok(ThreadPool { workers, sender })
     }
 
+    /// Runs the closure created with the worker.
     pub fn execute<F>(&self, f: F)
     where
         F: FnOnce() + Send + 'static,
